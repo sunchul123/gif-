@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QMenu, QApplication, QFrame, QMessageBox,
     QSystemTrayIcon,
 )
-from PySide6.QtCore import Qt, QTimer, QSize, QPoint
+from PySide6.QtCore import Qt, QTimer, QSize, QPoint, Signal
 from PySide6.QtGui import QMovie, QImageReader, QAction, QFont, QIcon
 
 from pet.pet_manager import discover_pets, get_current_pet_id, set_current_pet_id, PetConfig
@@ -24,6 +24,7 @@ from ui_theme import *
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SOUNDS_DIR = os.path.join(BASE_DIR, "sounds")
 LOG_FILE = os.path.join(BASE_DIR, "pet_debug.log")
+
 
 STATE_IDLE = "idle"
 STATE_TALK = "talk"
@@ -41,6 +42,9 @@ def log(msg):
 
 
 class PetWindow(QWidget):
+    # 定义信号用于线程间通信
+    reply_received = Signal(str, str)  # (reply, error)
+    
     def __init__(self):
         super().__init__()
         log("=== 桌面宠物启动 (PySide6) ===")
@@ -169,6 +173,9 @@ class PetWindow(QWidget):
         
         # 初始化系统托盘
         self._setup_tray_icon()
+        
+        # 连接信号到槽
+        self.reply_received.connect(self._on_reply)
         
         log("初始化完成")
 
@@ -515,20 +522,35 @@ class PetWindow(QWidget):
 
     def _do_ollama(self):
         try:
-            reply = self.ollama.chat(self.ollama_msgs)
-            QTimer.singleShot(0, lambda: self._on_reply(reply, None))
+            log(f"开始 Ollama 对话，模型: {self.ollama.model}")
+            log(f"消息数量: {len(self.ollama_msgs)}")
+            reply = self.ollama.chat(self.ollama_msgs, timeout=120)
+            log(f"Ollama 回复成功，长度: {len(reply)}")
+            log(f"回复内容预览: {reply[:50]}...")
+            
+            # 通过信号发送到主线程
+            self.reply_received.emit(reply, "")
         except Exception as e:
-            QTimer.singleShot(0, lambda: self._on_reply(None, str(e)))
+            import traceback
+            error_trace = traceback.format_exc()
+            log(f"Ollama 对话失败: {e}")
+            log(error_trace)
+            # 通过信号发送错误到主线程
+            self.reply_received.emit("", str(e))
 
     def _on_reply(self, reply, error):
+        log(f"_on_reply 被调用: reply={'有' if reply else '无'}, error={'有' if error else '无'}")
         self._chat_state = "reply"
         if self.state == STATE_THINKING and self._can_switch_to(STATE_TALK):
+            log(f"切换到 talk 状态")
             self._switch_state(STATE_TALK)
         self.chat_entry.setReadOnly(False)
         self.chat_entry.clear()
         if error:
+            log(f"显示错误: {error}")
             self.chat_entry.setHtml(f'<span style="color:{DANGER};">⚠ {error}</span>')
         else:
+            log(f"显示回复，长度: {len(reply)}")
             self.chat_entry.setPlainText(reply)
             self.ollama_msgs.append({"role": "assistant", "content": reply})
             self._save_history("assistant", reply)
@@ -722,21 +744,17 @@ class PetWindow(QWidget):
         self._todo_win = TodoWidget(self)
 
     def _launch_cc_direct(self):
-        """One-click launch Claude desktop (dynamic AppX detection)."""
+        """One-click launch Claude CLI in a new terminal."""
         try:
             import subprocess
-            # Query AppX package then launch via its AUMID
-            ps_cmd = (
-                'powershell -Command '
-                '"$pkg = Get-AppxPackage -Name *Claud*; '
-                'if ($pkg) { '
-                'Start-Process shell:AppsFolder\\\"$($pkg.PackageFamilyName)!App\"; '
-                '} else { exit 1 }"'
+            subprocess.Popen(
+                ["cmd", "/c", "start", "cmd", "/k", "claude"],
+                shell=False,
             )
-            subprocess.Popen(ps_cmd, shell=True)
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "提示", f"无法启动 Claude\n({e})")
+            QMessageBox.warning(self, "启动失败", f"无法启动 Claude CLI\n{e}")
+
 
     def _open_cc(self):
         from widgets import CCMiniWidget

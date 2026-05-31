@@ -19,6 +19,7 @@ from ui_theme import APP_STYLESHEET
 
 def main():
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)  # PetWindow 有 Qt.Tool，子窗口关闭时不应退出
     app.setStyleSheet(APP_STYLESHEET)
     # Set default font for all widgets
     from ui_theme import FONT

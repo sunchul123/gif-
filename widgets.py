@@ -309,21 +309,13 @@ class CCMiniWidget(QWidget):
             self.move(e.globalPosition().toPoint() - self._drag_pos)
 
     def _launch_cc(self):
-        """Open Claude desktop app (dynamic AppX detection)."""
+        """Open Claude CLI in a new terminal."""
         try:
-            ps_cmd = (
-                'powershell -Command '
-                '"$pkg = Get-AppxPackage -Name *Claud*; '
-                'if ($pkg) { '
-                'Start-Process shell:AppsFolder\\\"$($pkg.PackageFamilyName)!App\"; '
-                '} else { exit 1 }"'
+            subprocess.Popen(
+                ["cmd", "/c", "start", "cmd", "/k", "claude"],
+                shell=False,
             )
-            subprocess.Popen(ps_cmd, shell=True)
         except Exception as e:
             from PySide6.QtWidgets import QMessageBox
-            QMessageBox.information(self, "提示", f"无法启动 Claude\n({e})")
-        try:
-            with open(os.path.join(BASE_DIR, "cc_usage.json"), "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
+            QMessageBox.warning(self, "启动失败", f"无法启动 Claude CLI\n{e}")
+
