@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="pet/feibi/icon.png" width="80" alt="宠物图标">
+  <img src="icon.png" width="80" alt="宠物图标">
   <h1 align="center">桌面宠物 · Desktop Pet</h1>
   <p align="center">
     <strong>将gif转换为简单桌宠的工具</strong>
