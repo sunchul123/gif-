@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Runtime data
+pet_debug.log
+chat_history.json
+chat_archive.txt
+todo_list.json
+config.json
+pet/current.json
+
+# Pet assets (downloaded separately)
+pet/**/*.gif
+pet/**/*.ico
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Pet sounds
+pet/**/*.mp3
+pet/**/*.wav
+
+# Generated icon
+pet/**/*.ico
