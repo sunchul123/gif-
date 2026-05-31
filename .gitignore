@@ -21,6 +21,7 @@ config.json
 pet/current.json
 
 # Pet assets (downloaded separately)
+pet/
 pet/**/*.gif
 pet/**/*.ico
 
