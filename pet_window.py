@@ -12,9 +12,10 @@ from datetime import datetime
 from PySide6.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QHBoxLayout,
     QTextEdit, QMenu, QApplication, QFrame, QMessageBox,
+    QSystemTrayIcon,
 )
 from PySide6.QtCore import Qt, QTimer, QSize, QPoint
-from PySide6.QtGui import QMovie, QImageReader, QAction, QFont
+from PySide6.QtGui import QMovie, QImageReader, QAction, QFont, QIcon
 
 from pet.pet_manager import discover_pets, get_current_pet_id, set_current_pet_id, PetConfig
 from config_manager import load_config, save_config
@@ -51,6 +52,8 @@ class PetWindow(QWidget):
         flags = Qt.Window | Qt.FramelessWindowHint
         if self.config["display"].get("topmost", True):
             flags |= Qt.WindowStaysOnTopHint
+        # 隐藏任务栏图标
+        flags |= Qt.Tool
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_StyledBackground)
@@ -163,8 +166,74 @@ class PetWindow(QWidget):
         self._sleep_timer.timeout.connect(self._check_sleep_time)
         self._sleep_timer.start(60000)
         self._check_sleep_time()
+        
+        # 初始化系统托盘
+        self._setup_tray_icon()
+        
         log("初始化完成")
 
+    def _setup_tray_icon(self):
+        """设置系统托盘图标"""
+        icon_path = os.path.join(BASE_DIR, "pet.ico")
+        if os.path.exists(icon_path):
+            tray_icon = QIcon(icon_path)
+        else:
+            tray_icon = QIcon()
+        
+        self.tray_icon = QSystemTrayIcon(tray_icon, self)
+        self.tray_icon.setToolTip(f"桌面宠物 - {self.pet_config.name}")
+        
+        # 创建托盘菜单
+        tray_menu = QMenu()
+        tray_menu.setStyleSheet(f"""
+            QMenu {{ background: {BG_SURFACE}; color: {TEXT_PRIMARY};
+                border: 1px solid {BORDER}; border-radius: 8px; padding: 4px 0; }}
+            QMenu::item {{ padding: 6px 20px; border-radius: 4px; }}
+            QMenu::item:selected {{ background: {BG_HOVER}; color: {ACCENT}; }}
+            QMenu::separator {{ height: 1px; background: {BORDER}; margin: 4px 8px; }}
+        """)
+        
+        show_action = QAction("显示/隐藏", self)
+        show_action.triggered.connect(self._toggle_visibility)
+        tray_menu.addAction(show_action)
+        
+        tray_menu.addSeparator()
+        
+        quit_action = QAction("退出", self)
+        quit_action.triggered.connect(self._quit)
+        tray_menu.addAction(quit_action)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        
+        # 双击托盘图标显示/隐藏
+        self.tray_icon.activated.connect(self._on_tray_activated)
+        
+        # 显示托盘图标
+        self.tray_icon.show()
+    
+    def _on_tray_activated(self, reason):
+        """处理托盘图标激活事件"""
+        if reason == QSystemTrayIcon.DoubleClick:
+            self._toggle_visibility()
+    
+    def _toggle_visibility(self):
+        """切换窗口显示/隐藏"""
+        if self.isVisible():
+            self.hide()
+        else:
+            self.show()
+    
+    def closeEvent(self, event):
+        """处理关闭事件 - 最小化到托盘而不是退出"""
+        event.ignore()
+        self.hide()
+        self.tray_icon.showMessage(
+            "桌面宠物",
+            "程序已最小化到托盘，双击托盘图标可恢复",
+            QSystemTrayIcon.Information,
+            2000
+        )
+    
     # ---------------------------------------------------------------
     # GIF Loading
     # ---------------------------------------------------------------
@@ -678,6 +747,8 @@ class PetWindow(QWidget):
     # ---------------------------------------------------------------
 
     def _quit(self):
+        """完全退出程序"""
+        self.tray_icon.hide()
         self.movie.stop()
         self.close()
         QApplication.instance().quit()
